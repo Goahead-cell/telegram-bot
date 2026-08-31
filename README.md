@@ -40,7 +40,7 @@ Telegram BotFather token: [隐藏输入]
 ```
 
 - 域名填写纯域名，不要添加 `https://` 或路径；
-- Token 从 BotFather 获取，输入时不会显示，也不会进入 Shell 历史；
+- Token 从 BotFather 获取，安装器直接从当前 SSH 终端隐藏读取，不会显示，也不会进入 Shell 历史；
 - webhook 地址固定为 `https://你的域名/telegram/webhook`。
 
 安装器会自动完成：

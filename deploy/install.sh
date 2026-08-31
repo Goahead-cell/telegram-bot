@@ -48,6 +48,23 @@ require_command() {
 	fi
 }
 
+read_token_from_tty() {
+	[ -r /dev/tty ] || die "no terminal available; pass --token-file"
+	tty_state=$(stty -g </dev/tty) || die "could not read terminal settings"
+	trap 'stty "$tty_state" </dev/tty; printf "\n" >/dev/tty; exit 1' HUP INT TERM
+
+	printf 'Telegram BotFather token: ' >/dev/tty
+	stty -echo </dev/tty || die "could not hide terminal input"
+	if ! IFS= read -r bot_token </dev/tty; then
+		stty "$tty_state" </dev/tty
+		printf '\n' >/dev/tty
+		die "could not read the Telegram token"
+	fi
+	stty "$tty_state" </dev/tty
+	printf '\n' >/dev/tty
+	trap - HUP INT TERM
+}
+
 restore_caddy() {
 	if [ "$caddy_prepared" != true ]; then
 		return
@@ -110,7 +127,7 @@ if [ "$(id -u)" -ne 0 ]; then
 	die "run the installer as root (for example: curl ... | sudo sh)"
 fi
 
-for command_name in caddy cat cp curl getent grep groupadd id install journalctl mktemp mv openssl rm sha256sum sleep systemctl tar uname useradd; do
+for command_name in caddy cat cp curl getent grep groupadd id install journalctl mktemp mv openssl rm sha256sum sleep stty systemctl tar uname useradd; do
 	require_command "$command_name"
 done
 
@@ -141,8 +158,7 @@ if [ -n "$token_file" ]; then
 	[ -r "$token_file" ] || die "cannot read token file: $token_file"
 	IFS= read -r bot_token <"$token_file" || die "token file is empty: $token_file"
 else
-	require_command systemd-ask-password
-	bot_token=$(systemd-ask-password "Telegram BotFather token") || die "could not read the Telegram token"
+	read_token_from_tty
 fi
 
 if ! printf '%s\n' "$bot_token" | grep -Eq '^[0-9]+:[A-Za-z0-9_-]{20,}$'; then
