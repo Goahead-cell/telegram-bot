@@ -1,0 +1,35 @@
+# Option A: merge these handlers into an existing site block.
+# Put them before the existing Xray/static-site fallback handle.
+
+@telegram_webhook {
+	method POST
+	path /telegram/webhook
+}
+handle @telegram_webhook {
+	reverse_proxy 127.0.0.1:18082 {
+		transport http {
+			dial_timeout 2s
+			response_header_timeout 10s
+		}
+	}
+}
+
+@telegram_webhook_wrong_method path /telegram/webhook
+handle @telegram_webhook_wrong_method {
+	respond "Method Not Allowed" 405
+}
+
+# Keep the existing handlers below this point. For example:
+# handle {
+# 	root * /var/www/html
+# 	try_files {path} /index.html
+# 	file_server
+# }
+
+# Option B: for a dedicated subdomain, wrap the two handlers above in:
+# bot.example.com {
+# 	...handlers above...
+# 	handle {
+# 		respond "Not Found" 404
+# 	}
+# }

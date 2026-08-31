@@ -1,0 +1,36 @@
+[Unit]
+Description=Go Telegram webhook bot
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=telegram-bot
+Group=telegram-bot
+EnvironmentFile=/etc/telegram-bot/env
+ExecStart=/usr/local/bin/telegram-webhook-bot
+Restart=on-failure
+RestartSec=3s
+TimeoutStopSec=15s
+UMask=0077
+
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectHome=true
+ProtectSystem=strict
+ProtectClock=true
+ProtectHostname=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,5 @@
+.env
+dist/
+telegram-webhook-bot
+telegram-webhook-bot.exe
+telegram-webhook-bot-linux-*
