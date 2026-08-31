@@ -7,9 +7,9 @@ import (
 	"os/signal"
 	"syscall"
 
-	"telegram-webhook-bot/internal/config"
-	"telegram-webhook-bot/internal/handlers"
-	telegramserver "telegram-webhook-bot/internal/telegram"
+	"github.com/Goahead-cell/telegram-bot/internal/config"
+	"github.com/Goahead-cell/telegram-bot/internal/handlers"
+	telegramserver "github.com/Goahead-cell/telegram-bot/internal/telegram"
 )
 
 func main() {

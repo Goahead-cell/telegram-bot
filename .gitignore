@@ -1,5 +1,22 @@
+# Runtime configuration and secrets.
 .env
+.env.*
+*.env
+*.env.*
+!*.env.example
+secrets/
+*.key
+*.pem
+
+# Build outputs.
 dist/
 telegram-webhook-bot
 telegram-webhook-bot.exe
 telegram-webhook-bot-linux-*
+
+# Local editor and test state.
+.cache/
+.idea/
+.vscode/
+coverage.out
+*.test

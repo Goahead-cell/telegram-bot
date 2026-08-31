@@ -30,9 +30,17 @@ func TestLoadRejectsUnsafeValues(t *testing.T) {
 		key   string
 		value string
 	}{
+		{name: "missing token", key: "TELEGRAM_BOT_TOKEN", value: ""},
 		{name: "short secret", key: "TELEGRAM_WEBHOOK_SECRET", value: "short"},
+		{name: "secret containing punctuation", key: "TELEGRAM_WEBHOOK_SECRET", value: strings.Repeat("a", 31) + "!"},
 		{name: "non HTTPS URL", key: "TELEGRAM_WEBHOOK_URL", value: "http://bot.example.com/telegram/webhook"},
+		{name: "root webhook path", key: "TELEGRAM_WEBHOOK_URL", value: "https://bot.example.com/"},
+		{name: "webhook URL query", key: "TELEGRAM_WEBHOOK_URL", value: "https://bot.example.com/telegram/webhook?debug=1"},
+		{name: "webhook URL fragment", key: "TELEGRAM_WEBHOOK_URL", value: "https://bot.example.com/telegram/webhook#fragment"},
+		{name: "webhook URL credentials", key: "TELEGRAM_WEBHOOK_URL", value: "https://user:password@bot.example.com/telegram/webhook"},
 		{name: "non-loopback listener", key: "LISTEN_ADDR", value: "0.0.0.0:18082"},
+		{name: "listener without port", key: "LISTEN_ADDR", value: "127.0.0.1"},
+		{name: "invalid listener port", key: "LISTEN_ADDR", value: "127.0.0.1:70000"},
 	}
 
 	for _, tt := range tests {

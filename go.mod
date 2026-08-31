@@ -1,4 +1,4 @@
-module telegram-webhook-bot
+module github.com/Goahead-cell/telegram-bot
 
 go 1.22
 

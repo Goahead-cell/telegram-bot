@@ -14,7 +14,7 @@ import (
 
 	"github.com/go-telegram/bot"
 
-	"telegram-webhook-bot/internal/config"
+	"github.com/Goahead-cell/telegram-bot/internal/config"
 )
 
 const maxWebhookBodyBytes = 1 << 20
@@ -122,6 +122,10 @@ func authenticatedWebhook(secret string, next http.Handler) http.Handler {
 		provided := r.Header.Get("X-Telegram-Bot-Api-Secret-Token")
 		if len(provided) != len(secret) || subtle.ConstantTimeCompare([]byte(provided), []byte(secret)) != 1 {
 			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+		if r.ContentLength > maxWebhookBodyBytes {
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
 			return
 		}
 

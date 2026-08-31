@@ -42,4 +42,18 @@ func TestAuthenticatedWebhook(t *testing.T) {
 			t.Fatalf("unexpected status: %d", response.Code)
 		}
 	})
+
+	t.Run("rejects a declared oversized body", func(t *testing.T) {
+		req := httptest.NewRequest(
+			http.MethodPost,
+			"/telegram/webhook",
+			strings.NewReader(strings.Repeat("x", maxWebhookBodyBytes+1)),
+		)
+		req.Header.Set("X-Telegram-Bot-Api-Secret-Token", secret)
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, req)
+		if response.Code != http.StatusRequestEntityTooLarge {
+			t.Fatalf("unexpected status: %d", response.Code)
+		}
+	})
 }

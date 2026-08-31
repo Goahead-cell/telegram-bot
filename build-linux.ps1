@@ -8,7 +8,8 @@ $projectDir = $PSScriptRoot
 $distDir = Join-Path $projectDir "dist"
 $bundleName = "telegram-bot-linux-$Arch"
 $bundleDir = Join-Path $distDir $bundleName
-$archivePath = Join-Path $distDir "$bundleName.zip"
+$archivePath = Join-Path $distDir "$bundleName.tar.gz"
+$archiveChecksumPath = "$archivePath.sha256"
 $binaryPath = Join-Path $bundleDir "telegram-webhook-bot"
 $deployDir = Join-Path $projectDir "deploy"
 
@@ -65,12 +66,30 @@ try {
     if (Test-Path -LiteralPath $archivePath) {
         Remove-Item -LiteralPath $archivePath -Force
     }
-    Compress-Archive -LiteralPath $bundleDir -DestinationPath $archivePath -CompressionLevel Optimal
+    if (Test-Path -LiteralPath $archiveChecksumPath) {
+        Remove-Item -LiteralPath $archiveChecksumPath -Force
+    }
+
+    if (-not (Get-Command tar -ErrorAction SilentlyContinue)) {
+        throw "tar is required to create the Linux release archive"
+    }
+    & tar -C $distDir -czf $archivePath $bundleName
+    if ($LASTEXITCODE -ne 0) {
+        throw "tar command failed with exit code $LASTEXITCODE"
+    }
+
+    $archiveHash = (Get-FileHash -LiteralPath $archivePath -Algorithm SHA256).Hash.ToLowerInvariant()
+    [System.IO.File]::WriteAllText(
+        $archiveChecksumPath,
+        "$archiveHash  $bundleName.tar.gz`n",
+        [System.Text.Encoding]::ASCII
+    )
 
     Write-Host "Build completed:"
     Write-Host "  Bundle: $bundleDir"
-    Write-Host "  ZIP:    $archivePath"
-    Write-Host "  SHA256: $hash"
+    Write-Host "  Archive: $archivePath"
+    Write-Host "  Archive checksum: $archiveChecksumPath"
+    Write-Host "  Binary SHA256: $hash"
 }
 finally {
     Pop-Location

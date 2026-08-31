@@ -48,7 +48,7 @@ func load(getenv func(string) string) (Config, error) {
 	}
 
 	webhookURL, err := url.ParseRequestURI(cfg.WebhookURL)
-	if err != nil || webhookURL.Scheme != "https" || webhookURL.Host == "" {
+	if err != nil || webhookURL.Scheme != "https" || webhookURL.Host == "" || webhookURL.User != nil {
 		return Config{}, errors.New("TELEGRAM_WEBHOOK_URL must be an absolute https URL")
 	}
 	if webhookURL.RawQuery != "" || webhookURL.Fragment != "" || webhookURL.RawPath != "" {
