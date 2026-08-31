@@ -1,37 +1,32 @@
 # Telegram Webhook Bot
 
-基于 [`go-telegram/bot`](https://github.com/go-telegram/bot) 的 webhook Bot。Caddy 负责公网 HTTPS，Go 服务只监听 `127.0.0.1:18082`。
-
-仓库：[`Goahead-cell/telegram-bot`](https://github.com/Goahead-cell/telegram-bot)
-
-## 架构
+基于 [`go-telegram/bot`](https://github.com/go-telegram/bot) 的 Telegram webhook Bot。Caddy 负责公网 HTTPS，Bot 服务只监听本机 `127.0.0.1:18082`。
 
 ```text
-Telegram ──HTTPS──► Caddy ──HTTP──► go-telegram/bot ──► handlers
+Telegram ──HTTPS──► Caddy ──HTTP──► telegram-webhook-bot
                   :443             127.0.0.1:18082
 ```
 
-## 发布版本
+仓库：[`Goahead-cell/telegram-bot`](https://github.com/Goahead-cell/telegram-bot)
 
-推送 `v*` 标签后，GitHub Actions 会自动测试并构建 `linux-amd64`、`linux-arm64`，然后创建 GitHub Release：
+## 一、VPS 首次安装
 
-```powershell
-git tag -a v0.1.0 -m "v0.1.0"
-git push origin v0.1.0
-```
+### 安装前准备
 
-Release 包含两种架构的压缩包、SHA-256 校验文件以及独立的 `install.sh`、`update.sh`。VPS 不需要安装 Go。
+VPS 需要：
 
-## VPS 一键安装
+- Linux + systemd；
+- 已安装并能正常启动的 Caddy；
+- `curl`、`openssl`、`tar`、`sha256sum`；
+- 一个专门给 Bot 使用、尚未被其他 Caddy 站点占用的域名，例如 `bot.example.com`；
+- 域名 A/AAAA 记录已经指向 VPS，公网 80、443 端口可访问；
+- 本仓库至少已经通过 GitHub Actions 发布一个版本。
 
-安装前只需满足：
+VPS 不需要安装 Go，也不需要下载源码。
 
-- VPS 使用 systemd，并已安装 Caddy、`curl`、`openssl`、`tar` 和 `sha256sum`；
-- 准备一个未被其他 Caddy 站点使用的 Bot 专用域名，例如 `bot.example.com`；
-- 域名 A/AAAA 记录已指向 VPS，公网 80/443 端口可访问；
-- GitHub Actions 已成功发布至少一个版本。
+### 一键安装
 
-在 VPS 执行一条命令：
+登录 VPS，执行：
 
 ```sh
 curl -fsSL https://github.com/Goahead-cell/telegram-bot/releases/latest/download/install.sh | sudo sh
@@ -39,128 +34,282 @@ curl -fsSL https://github.com/Goahead-cell/telegram-bot/releases/latest/download
 
 安装器只会询问两项内容：
 
-1. Bot 专用域名；
-2. BotFather Token（通过 systemd 的密码输入界面读取，不显示，也不进入 Shell 历史）。
+```text
+Telegram Bot dedicated domain: bot.example.com
+Telegram BotFather token: [隐藏输入]
+```
 
-其余步骤全部自动完成：
+- 域名填写纯域名，不要添加 `https://` 或路径；
+- Token 从 BotFather 获取，输入时不会显示，也不会进入 Shell 历史；
+- webhook 地址固定为 `https://你的域名/telegram/webhook`。
 
-- 检测 VPS 是 amd64 还是 arm64；
-- 下载最新 GitHub Release；
-- 校验压缩包和二进制 SHA-256；
-- 创建低权限 `telegram-bot` 系统用户；
-- 自动生成 64 位 webhook secret；
-- 写入受保护的 VPS 环境文件；
-- 生成 Bot 专用 Caddy 配置并导入主 Caddyfile；
-- 验证、加载 Caddy；
-- 安装并启动 systemd 服务；
-- 检查 `/healthz`；
-- 安装一键更新命令。
+安装器会自动完成：
 
-如果希望先检查脚本再执行：
+1. 检测 VPS 是 amd64 还是 arm64；
+2. 下载最新 GitHub Release；
+3. 校验压缩包和二进制 SHA-256；
+4. 创建低权限 `telegram-bot` 系统用户；
+5. 自动生成 webhook secret；
+6. 写入 Token、secret 和 webhook URL；
+7. 生成并验证 Caddy 配置；
+8. 安装、启动 systemd 服务；
+9. 检查 Bot 健康状态；
+10. 安装 `telegram-bot-update` 更新命令。
+
+安装成功后，在 Telegram 中给机器人发送 `/start` 测试。
+
+### 先检查脚本再安装
+
+不想直接执行远程脚本时，可以先下载检查：
 
 ```sh
 curl -fsSL https://github.com/Goahead-cell/telegram-bot/releases/latest/download/install.sh \
   -o /tmp/telegram-bot-install.sh
+
 less /tmp/telegram-bot-install.sh
 sudo sh /tmp/telegram-bot-install.sh
 ```
 
-无人值守安装可通过安全的 Token 文件传入，不要把 Token 直接写在命令参数中：
+### 无人值守安装
+
+把 Token 单独放入只有 root 能读取的文件，不要把 Token 写进命令参数：
 
 ```sh
+sudo install -m 0600 /dev/null /root/telegram-bot-token
+sudoedit /root/telegram-bot-token
+
 sudo sh /tmp/telegram-bot-install.sh \
   --domain bot.example.com \
   --token-file /root/telegram-bot-token
 ```
 
-## 一键更新
-
-安装完成后只需：
+安装后可以删除临时 Token 文件：
 
 ```sh
-sudo telegram-bot-update
+sudo rm -f /root/telegram-bot-token
 ```
 
-安装指定版本：
+## 二、配置说明
 
-```sh
-sudo telegram-bot-update v0.2.0
-```
+### Bot 环境配置
 
-如果 VPS 是旧版安装、还没有 `telegram-bot-update` 命令，可以直接执行最新更新入口：
-
-```sh
-curl -fsSL https://github.com/Goahead-cell/telegram-bot/releases/latest/download/update.sh | sudo sh
-```
-
-更新器会自动选择架构、下载并校验 Release、备份当前程序、原子替换二进制并观察服务 20 秒。如果新版本退出或健康检查失败，它会自动恢复旧版本。
+安装器自动创建：
 
 ```text
-/usr/local/bin/telegram-webhook-bot.previous  # 回滚版本
-/usr/local/bin/telegram-webhook-bot.failed    # 启动失败的新版本
+/etc/telegram-bot/env
 ```
 
-更新不会修改 Token、webhook secret 或 Caddy 配置。如果服务在更新前已经停止，更新器只替换文件，不会擅自启动。
-
-## VPS 文件位置
+文件权限为 `0640 root:telegram-bot`，内容格式如下：
 
 ```text
-/usr/local/bin/telegram-webhook-bot       # 当前程序
-/usr/local/sbin/telegram-bot-update       # 一键更新命令
-/etc/telegram-bot/env                     # Token、secret、URL，权限 0640
-/etc/systemd/system/telegram-bot.service  # systemd 服务
-/etc/caddy/telegram-bot.caddy             # 安装器管理的 Caddy 站点
+TELEGRAM_BOT_TOKEN=从_BotFather_获取的_token
+TELEGRAM_WEBHOOK_SECRET=安装器自动生成的64位字符串
+TELEGRAM_WEBHOOK_URL=https://bot.example.com/telegram/webhook
+LISTEN_ADDR=127.0.0.1:18082
 ```
 
-安装器只会在 `/etc/caddy/Caddyfile` 末尾加入：
+不要把这个文件复制到仓库、聊天记录或日志中。
+
+修改 Token 或其他配置：
+
+```sh
+sudoedit /etc/telegram-bot/env
+sudo systemctl restart telegram-bot
+```
+
+通常不需要手动修改 `TELEGRAM_WEBHOOK_SECRET`。如果必须更换：
+
+```sh
+openssl rand -hex 32
+sudoedit /etc/telegram-bot/env
+sudo systemctl restart telegram-bot
+```
+
+### Caddy 配置
+
+安装器创建：
+
+```text
+/etc/caddy/telegram-bot.caddy
+```
+
+并在 `/etc/caddy/Caddyfile` 末尾加入：
 
 ```caddyfile
 import /etc/caddy/telegram-bot.caddy
 ```
 
-Caddy 配置验证或加载失败时，安装器会恢复修改前的配置。
+生成的站点配置类似：
 
-## 常用命令
+```caddyfile
+bot.example.com {
+	@telegram_webhook {
+		method POST
+		path /telegram/webhook
+	}
+
+	handle @telegram_webhook {
+		reverse_proxy 127.0.0.1:18082
+	}
+
+	@telegram_webhook_wrong_method path /telegram/webhook
+	handle @telegram_webhook_wrong_method {
+		respond "Method Not Allowed" 405
+	}
+
+	handle {
+		respond "Not Found" 404
+	}
+}
+```
+
+Caddy 验证或加载失败时，安装器会恢复修改前的配置。
+
+### 更换域名
+
+先把新域名 DNS 指向 VPS，然后同时修改两个文件：
 
 ```sh
-sudo systemctl status telegram-bot --no-pager
-sudo journalctl -u telegram-bot -n 100 --no-pager
-curl --fail http://127.0.0.1:18082/healthz
+sudoedit /etc/telegram-bot/env
+sudoedit /etc/caddy/telegram-bot.caddy
+```
+
+例如将两处域名都改成 `newbot.example.com`，再执行：
+
+```sh
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl reload caddy
 sudo systemctl restart telegram-bot
 ```
 
-## Windows 本地交叉编译
+`TELEGRAM_WEBHOOK_URL` 中的域名和路径必须与 Caddy 配置完全一致。
 
-AMD64：
+### 文件位置
 
-```powershell
-.\build-linux.ps1 -Arch amd64
+```text
+/usr/local/bin/telegram-webhook-bot       # 当前 Bot 程序
+/usr/local/sbin/telegram-bot-update       # 一键更新命令
+/etc/telegram-bot/env                     # Token、secret、webhook URL
+/etc/systemd/system/telegram-bot.service  # systemd 服务
+/etc/caddy/telegram-bot.caddy             # Bot 专用 Caddy 配置
 ```
 
-ARM64：
+## 三、一键更新与回滚
 
-```powershell
-.\build-linux.ps1 -Arch arm64
+### 更新到最新版本
+
+```sh
+sudo telegram-bot-update
 ```
 
-脚本会先执行 `go test ./...` 和 `go vet ./...`，然后在忽略的 `dist/` 中生成与 GitHub Release 相同结构的包。
+如果当前 sudo 配置找不到 `/usr/local/sbin`，使用完整路径：
 
-## 本地开发
+```sh
+sudo /usr/local/sbin/telegram-bot-update
+```
+
+### 更新或回退到指定版本
+
+```sh
+sudo telegram-bot-update v0.2.0
+```
+
+参数必须是已经存在的 GitHub Release 标签。
+
+### 更新过程
+
+更新器会自动：
+
+1. 检测 VPS CPU 架构；
+2. 下载并校验目标 Release；
+3. 将当前程序备份为 `.previous`；
+4. 原子替换程序并重启服务；
+5. 持续检查 systemd 和 `/healthz` 20 秒；
+6. 新版本失败时自动恢复旧版本；
+7. 更新 VPS 上的 `telegram-bot-update` 命令本身。
+
+相关文件：
+
+```text
+/usr/local/bin/telegram-webhook-bot.previous  # 更新前版本
+/usr/local/bin/telegram-webhook-bot.failed    # 启动失败的新版本
+```
+
+更新不会修改 `/etc/telegram-bot/env` 或 Caddy 配置。如果服务在更新前已经停止，更新器只替换文件，不会擅自启动。
+
+旧安装还没有 `telegram-bot-update` 命令时，可执行：
+
+```sh
+curl -fsSL https://github.com/Goahead-cell/telegram-bot/releases/latest/download/update.sh | sudo sh
+```
+
+## 四、检查状态与排错
+
+检查服务：
+
+```sh
+sudo systemctl status telegram-bot --no-pager
+```
+
+查看日志：
+
+```sh
+sudo journalctl -u telegram-bot -n 100 --no-pager
+```
+
+检查本地健康状态：
+
+```sh
+curl --fail http://127.0.0.1:18082/healthz
+```
+
+正常输出：
+
+```text
+ok
+```
+
+检查 Caddy：
+
+```sh
+sudo caddy validate --config /etc/caddy/Caddyfile
+sudo systemctl status caddy --no-pager
+sudo journalctl -u caddy -n 100 --no-pager
+```
+
+常见问题：
+
+- 安装地址返回 `404`：仓库还没有 Release，或者最新 Release 没有上传 `install.sh`；
+- Caddy 无法申请证书：检查域名 DNS 和 VPS 的 80/443 防火墙；
+- Bot 服务不断重启：检查 Token、服务器能否访问 Telegram API，以及 `journalctl` 日志；
+- webhook 不生效：确认环境文件和 Caddy 中的域名、`/telegram/webhook` 路径一致。
+
+## 五、发布新版本
+
+提交代码并推送以 `v` 开头的标签：
+
+```powershell
+git push origin main
+git tag -a v0.1.0 -m "v0.1.0"
+git push origin v0.1.0
+```
+
+GitHub Actions 会自动运行测试，构建 `linux-amd64`、`linux-arm64`，生成 SHA-256，并上传到 GitHub Releases。等待工作流成功后，VPS 才能安装或更新到该版本。
+
+## 六、本地开发与构建
 
 需要 Go 1.22 或更高版本：
 
 ```powershell
 go test ./...
 go vet ./...
-go run ./cmd/bot
 ```
 
-业务代码位于 `internal/handlers`；webhook 和 Telegram 框架适配位于 `internal/telegram`。
+本地交叉编译：
 
-## 敏感信息
+```powershell
+.\build-linux.ps1 -Arch amd64
+.\build-linux.ps1 -Arch arm64
+```
 
-- Token 和 webhook secret 只保存在 VPS 的 `/etc/telegram-bot/env`；
-- Token 不应出现在命令参数、源码、构建参数或 GitHub Actions 中；
-- `.env`、`*.env`、`secrets/`、`*.key`、`*.pem` 和 `dist/` 已被 Git 忽略；
-- 仓库中的 `deploy/telegram-bot.env.example` 只有占位值；
-- 如果 Token 曾误提交，应立即通过 BotFather 撤销并重新生成，而不是只删除文件。
+构建产物位于被 Git 忽略的 `dist/`。Token、webhook secret、`.env`、私钥和构建产物都不应进入 Git。
