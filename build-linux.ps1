@@ -10,6 +10,7 @@ $bundleName = "telegram-bot-linux-$Arch"
 $bundleDir = Join-Path $distDir $bundleName
 $archivePath = Join-Path $distDir "$bundleName.tar.gz"
 $archiveChecksumPath = "$archivePath.sha256"
+$legacyArchivePath = Join-Path $distDir "$bundleName.zip"
 $binaryPath = Join-Path $bundleDir "telegram-webhook-bot"
 $deployDir = Join-Path $projectDir "deploy"
 
@@ -55,6 +56,8 @@ try {
     )) {
         Copy-Item -LiteralPath (Join-Path $deployDir $fileName) -Destination $bundleDir
     }
+    Copy-Item -LiteralPath (Join-Path $deployDir "install.sh") -Destination $distDir -Force
+    Copy-Item -LiteralPath (Join-Path $deployDir "update.sh") -Destination $distDir -Force
 
     $hash = (Get-FileHash -LiteralPath $binaryPath -Algorithm SHA256).Hash.ToLowerInvariant()
     [System.IO.File]::WriteAllText(
@@ -68,6 +71,9 @@ try {
     }
     if (Test-Path -LiteralPath $archiveChecksumPath) {
         Remove-Item -LiteralPath $archiveChecksumPath -Force
+    }
+    if (Test-Path -LiteralPath $legacyArchivePath) {
+        Remove-Item -LiteralPath $legacyArchivePath -Force
     }
 
     if (-not (Get-Command tar -ErrorAction SilentlyContinue)) {
@@ -89,6 +95,7 @@ try {
     Write-Host "  Bundle: $bundleDir"
     Write-Host "  Archive: $archivePath"
     Write-Host "  Archive checksum: $archiveChecksumPath"
+    Write-Host "  One-click installer: $(Join-Path $distDir 'install.sh')"
     Write-Host "  Binary SHA256: $hash"
 }
 finally {

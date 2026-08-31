@@ -5,6 +5,7 @@
 # produced from a Windows checkout.
 *.sh text eol=lf
 *.service text eol=lf
+*.env.example text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
 Caddyfile* text eol=lf

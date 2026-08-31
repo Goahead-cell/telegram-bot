@@ -1,3 +1,6 @@
+# The one-click installer creates /etc/caddy/telegram-bot.caddy automatically.
+# This file is for manual recovery or custom Caddy layouts.
+#
 # Option A: merge these handlers into an existing site block.
 # Put them before the existing Xray/static-site fallback handle.
 
