@@ -9,5 +9,5 @@ import (
 
 // Start handles the /start command.
 func Start(ctx context.Context, b *bot.Bot, update *models.Update) {
-	sendText(ctx, b, update.Message.Chat.ID, "机器人已上线。发送任意文字，我会原样回复。")
+	sendText(ctx, b, update.Message.Chat.ID, "机器人已上线。发送 /help 查看可用指令。")
 }

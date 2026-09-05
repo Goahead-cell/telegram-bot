@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"os"
 	"os/signal"
@@ -12,13 +13,20 @@ import (
 	telegramserver "github.com/Goahead-cell/telegram-bot/internal/telegram"
 )
 
+var version = "dev"
+
 func main() {
+	if len(os.Args) == 2 && os.Args[1] == "--version" {
+		fmt.Println(version)
+		return
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	router := handlers.NewRouter(cfg.AdminUserID)
+	router := handlers.NewRouter(cfg.AdminUserID, version)
 	server, err := telegramserver.New(cfg, router.HandleUpdate)
 	if err != nil {
 		log.Fatal(err)

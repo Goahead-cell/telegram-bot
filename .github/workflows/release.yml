@@ -48,7 +48,8 @@ jobs:
             mkdir -p "${bundle_dir}"
 
             CGO_ENABLED=0 GOOS=linux GOARCH="${arch}" \
-              go build -buildvcs=false -trimpath -ldflags="-s -w" \
+              go build -buildvcs=false -trimpath \
+              -ldflags="-s -w -X main.version=${GITHUB_REF_NAME}" \
               -o "${bundle_dir}/telegram-webhook-bot" ./cmd/bot
 
             install -m 0755 deploy/install.sh deploy/update.sh "${bundle_dir}/"

@@ -3,6 +3,8 @@ set -eu
 
 repository="Goahead-cell/telegram-bot"
 service_name="telegram-bot.service"
+service_unit="/etc/systemd/system/$service_name"
+service_candidate="$service_unit.new"
 target_binary="/usr/local/bin/telegram-webhook-bot"
 previous_binary="$target_binary.previous"
 failed_binary="$target_binary.failed"
@@ -66,7 +68,7 @@ ensure_admin_user_id() {
 }
 
 cleanup() {
-	rm -f "$candidate_binary" "$updater_candidate"
+	rm -f "$candidate_binary" "$service_candidate" "$updater_candidate"
 	if [ -n "$temp_dir" ] && [ -d "$temp_dir" ]; then
 		rm -rf "$temp_dir"
 	fi
@@ -118,6 +120,7 @@ fi
 
 [ -f "$target_binary" ] || die "the bot is not installed; run install.sh first"
 [ -f "$env_file" ] || die "$env_file is missing"
+[ -f "$service_unit" ] || die "$service_unit is missing"
 systemctl cat "$service_name" >/dev/null 2>&1 || die "$service_name is not installed"
 
 temp_dir=$(mktemp -d)
@@ -160,7 +163,7 @@ curl --fail --location --retry 3 --connect-timeout 10 \
 tar -xzf "$temp_dir/$archive_name" -C "$temp_dir"
 bundle_dir="$temp_dir/$bundle_name"
 
-for required_file in telegram-webhook-bot telegram-webhook-bot.sha256 update.sh; do
+for required_file in telegram-webhook-bot telegram-webhook-bot.sha256 telegram-bot.service update.sh; do
 	[ -f "$bundle_dir/$required_file" ] || die "release bundle is missing $required_file"
 done
 
@@ -172,6 +175,16 @@ done
 was_active=false
 if systemctl is-active --quiet "$service_name"; then
 	was_active=true
+fi
+
+install -o root -g root -m 0644 "$service_unit" "$temp_dir/telegram-bot.service.previous"
+install -o root -g root -m 0644 "$bundle_dir/telegram-bot.service" "$service_candidate"
+mv -f "$service_candidate" "$service_unit"
+if ! systemctl daemon-reload; then
+	install -o root -g root -m 0644 "$temp_dir/telegram-bot.service.previous" "$service_candidate"
+	mv -f "$service_candidate" "$service_unit"
+	systemctl daemon-reload >/dev/null 2>&1 || true
+	die "systemd rejected the updated service unit"
 fi
 
 install -o root -g root -m 0755 "$target_binary" "$previous_binary"
@@ -207,6 +220,9 @@ journalctl -u "$service_name" -n 50 --no-pager || true
 install -o root -g root -m 0755 "$target_binary" "$failed_binary"
 install -o root -g root -m 0755 "$previous_binary" "$candidate_binary"
 mv -f "$candidate_binary" "$target_binary"
+install -o root -g root -m 0644 "$temp_dir/telegram-bot.service.previous" "$service_candidate"
+mv -f "$service_candidate" "$service_unit"
+systemctl daemon-reload
 
 if systemctl restart "$service_name" && observe_service 10; then
 	echo "Rollback succeeded. Failed binary: $failed_binary" >&2

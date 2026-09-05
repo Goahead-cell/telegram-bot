@@ -1,6 +1,9 @@
 param(
     [ValidateSet("amd64", "arm64")]
-    [string]$Arch = "amd64"
+    [string]$Arch = "amd64",
+
+    [ValidatePattern("^(dev|v[0-9A-Za-z._-]+)$")]
+    [string]$Version = "dev"
 )
 
 $ErrorActionPreference = "Stop"
@@ -39,7 +42,7 @@ try {
         $env:CGO_ENABLED = "0"
         $env:GOOS = "linux"
         $env:GOARCH = $Arch
-        Invoke-Go @("build", "-buildvcs=false", "-trimpath", "-ldflags=-s -w", "-o", $binaryPath, "./cmd/bot")
+        Invoke-Go @("build", "-buildvcs=false", "-trimpath", "-ldflags=-s -w -X main.version=$Version", "-o", $binaryPath, "./cmd/bot")
     }
     finally {
         if ($null -eq $oldCGO) { Remove-Item Env:CGO_ENABLED -ErrorAction SilentlyContinue } else { $env:CGO_ENABLED = $oldCGO }
@@ -92,6 +95,7 @@ try {
     )
 
     Write-Host "Build completed:"
+    Write-Host "  Version: $Version"
     Write-Host "  Bundle: $bundleDir"
     Write-Host "  Archive: $archivePath"
     Write-Host "  Archive checksum: $archiveChecksumPath"

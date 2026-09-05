@@ -9,6 +9,27 @@ Telegram ──HTTPS──► Caddy ──HTTP──► telegram-webhook-bot
 
 仓库：[`Goahead-cell/telegram-bot`](https://github.com/Goahead-cell/telegram-bot)
 
+## Bot 指令
+
+Bot 只响应 `TELEGRAM_ADMIN_USER_ID` 配置的管理员：
+
+```text
+/start       显示欢迎信息
+/help        显示指令列表
+/status      查看 CPU、系统负载、内存、磁盘和运行时间
+/version     查看当前 Bot 版本
+/services    查看 caddy、telegram-bot 和 hysteria-server 服务状态
+/id          显示当前 Telegram 用户 ID
+```
+
+`/status` 只执行固定的只读系统命令。`/services` 使用 `systemctl is-active` 查询以下单元，不会启动、停止或重启服务：
+
+```text
+caddy.service
+telegram-bot.service
+hysteria-server.service
+```
+
 ## 一、VPS 首次安装
 
 ### 安装前准备
@@ -220,7 +241,7 @@ sudo /usr/local/sbin/telegram-bot-update
 ### 更新或回退到指定版本
 
 ```sh
-sudo telegram-bot-update v0.2.0
+sudo telegram-bot-update v0.3.0
 ```
 
 参数必须是已经存在的 GitHub Release 标签。
@@ -232,11 +253,12 @@ sudo telegram-bot-update v0.2.0
 1. 检查 `/etc/telegram-bot/env` 中的管理员 ID，缺少时从当前终端询问并写入；
 2. 检测 VPS CPU 架构；
 3. 下载并校验目标 Release；
-4. 将当前程序备份为 `.previous`；
-5. 原子替换程序并重启服务；
-6. 持续检查 systemd 和 `/healthz` 20 秒；
-7. 新版本失败时自动恢复旧版本；
-8. 更新 VPS 上的 `telegram-bot-update` 命令本身。
+4. 备份当前程序和 systemd 服务单元；
+5. 同步更新 systemd 服务单元；
+6. 原子替换程序并重启服务；
+7. 持续检查 systemd 和 `/healthz` 20 秒；
+8. 新版本失败时自动恢复旧程序和旧服务单元；
+9. 更新 VPS 上的 `telegram-bot-update` 命令本身。
 
 相关文件：
 
@@ -245,7 +267,7 @@ sudo telegram-bot-update v0.2.0
 /usr/local/bin/telegram-webhook-bot.failed    # 启动失败的新版本
 ```
 
-更新不会修改 `/etc/telegram-bot/env` 或 Caddy 配置。如果服务在更新前已经停止，更新器只替换文件，不会擅自启动。
+除缺少时补写 `TELEGRAM_ADMIN_USER_ID` 外，更新不会修改 `/etc/telegram-bot/env` 或 Caddy 配置。如果服务在更新前已经停止，更新器只替换文件，不会擅自启动。
 
 旧安装还没有 `telegram-bot-update` 命令时，可执行：
 
@@ -302,8 +324,8 @@ sudo journalctl -u caddy -n 100 --no-pager
 
 ```powershell
 git push origin main
-git tag -a v0.1.0 -m "v0.1.0"
-git push origin v0.1.0
+git tag -a v0.3.0 -m "v0.3.0"
+git push origin v0.3.0
 ```
 
 GitHub Actions 会自动运行测试，构建 `linux-amd64`、`linux-arm64`，生成 SHA-256，并上传到 GitHub Releases。等待工作流成功后，VPS 才能安装或更新到该版本。
@@ -320,8 +342,8 @@ go vet ./...
 本地交叉编译：
 
 ```powershell
-.\build-linux.ps1 -Arch amd64
-.\build-linux.ps1 -Arch arm64
+.\build-linux.ps1 -Arch amd64 -Version v0.3.0
+.\build-linux.ps1 -Arch arm64 -Version v0.3.0
 ```
 
 构建产物位于被 Git 忽略的 `dist/`。Token、webhook secret、`.env`、私钥和构建产物都不应进入 Git。

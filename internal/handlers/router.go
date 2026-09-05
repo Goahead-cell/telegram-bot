@@ -12,11 +12,15 @@ import (
 // Router dispatches updates received from the configured administrator.
 type Router struct {
 	adminUserID int64
+	version     string
 }
 
 // NewRouter creates a Router restricted to one Telegram user.
-func NewRouter(adminUserID int64) *Router {
-	return &Router{adminUserID: adminUserID}
+func NewRouter(adminUserID int64, version string) *Router {
+	return &Router{
+		adminUserID: adminUserID,
+		version:     version,
+	}
 }
 
 // HandleUpdate is the callback passed to go-telegram/bot.
@@ -32,10 +36,16 @@ func (r *Router) HandleUpdate(ctx context.Context, b *bot.Bot, update *models.Up
 	switch commandName(update.Message.Text) {
 	case "start":
 		Start(ctx, b, update)
-
 	case "help":
 		Help(ctx, b, update)
-
+	case "status":
+		Status(ctx, b, update)
+	case "version":
+		Version(ctx, b, update, r.version)
+	case "services":
+		Services(ctx, b, update)
+	case "id":
+		ID(ctx, b, update)
 	default:
 		Echo(ctx, b, update)
 	}

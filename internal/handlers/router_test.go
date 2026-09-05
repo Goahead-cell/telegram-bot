@@ -16,6 +16,10 @@ func TestCommandName(t *testing.T) {
 		{text: "/start@example_bot", want: "start"},
 		{text: "/help", want: "help"},
 		{text: "/help@example_bot", want: "help"},
+		{text: "/status", want: "status"},
+		{text: "/version", want: "version"},
+		{text: "/services", want: "services"},
+		{text: "/id", want: "id"},
 		{text: "hello", want: ""},
 		{text: "", want: ""},
 	}
