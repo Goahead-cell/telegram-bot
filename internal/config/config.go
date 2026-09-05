@@ -15,9 +15,10 @@ import (
 
 var webhookSecretPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{32,256}$`)
 
-// Config contains everything needed by the Telegram transport layer.
+// Config contains all validated runtime configuration.
 type Config struct {
 	BotToken      string
+	AdminUserID   int64
 	WebhookSecret string
 	WebhookURL    string
 	WebhookPath   string
@@ -43,6 +44,11 @@ func load(getenv func(string) string) (Config, error) {
 	if cfg.BotToken == "" {
 		return Config{}, errors.New("TELEGRAM_BOT_TOKEN is required")
 	}
+	adminUserID, err := strconv.ParseInt(strings.TrimSpace(getenv("TELEGRAM_ADMIN_USER_ID")), 10, 64)
+	if err != nil || adminUserID <= 0 {
+		return Config{}, errors.New("TELEGRAM_ADMIN_USER_ID must be a positive integer")
+	}
+	cfg.AdminUserID = adminUserID
 	if !webhookSecretPattern.MatchString(cfg.WebhookSecret) {
 		return Config{}, errors.New("TELEGRAM_WEBHOOK_SECRET must be 32-256 characters using only A-Z, a-z, 0-9, _ and -")
 	}

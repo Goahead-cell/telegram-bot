@@ -14,6 +14,7 @@ listen_addr="127.0.0.1:18082"
 
 release_version="latest"
 bot_domain=""
+admin_user_id=""
 token_file=""
 temp_dir=""
 candidate_binary="$target_binary.new"
@@ -28,6 +29,7 @@ Usage: install.sh [options]
 
 Options:
   --domain DOMAIN      Dedicated bot domain (otherwise prompted)
+  --admin-user-id ID   Numeric Telegram user ID (otherwise prompted)
   --token-file PATH    Read the BotFather token from the first line of PATH
   --version TAG        Install a specific release tag instead of latest
   -h, --help           Show this help
@@ -63,6 +65,18 @@ read_token_from_tty() {
 	stty "$tty_state" </dev/tty
 	printf '\n' >/dev/tty
 	trap - HUP INT TERM
+}
+
+read_admin_user_id_from_tty() {
+	[ -r /dev/tty ] || die "no terminal available; pass --admin-user-id"
+	printf 'Telegram administrator user ID: ' >/dev/tty
+	if ! IFS= read -r admin_user_id </dev/tty; then
+		die "could not read the Telegram administrator user ID"
+	fi
+}
+
+validate_admin_user_id() {
+	[ "${#1}" -le 18 ] && printf '%s\n' "$1" | grep -Eq '^[1-9][0-9]*$'
 }
 
 restore_caddy() {
@@ -101,6 +115,11 @@ while [ "$#" -gt 0 ]; do
 		--domain)
 			[ "$#" -ge 2 ] || die "--domain requires a value"
 			bot_domain=$2
+			shift 2
+			;;
+		--admin-user-id)
+			[ "$#" -ge 2 ] || die "--admin-user-id requires a value"
+			admin_user_id=$2
 			shift 2
 			;;
 		--token-file)
@@ -143,7 +162,7 @@ if [ "$release_version" != latest ] && ! printf '%s\n' "$release_version" | grep
 fi
 
 if [ -z "$bot_domain" ]; then
-	[ -r /dev/tty ] || die "no terminal available; pass --domain and --token-file"
+	[ -r /dev/tty ] || die "no terminal available; pass --domain, --admin-user-id and --token-file"
 	printf 'Telegram Bot dedicated domain (for example bot.example.com): ' >/dev/tty
 	if ! IFS= read -r bot_domain </dev/tty; then
 		die "could not read the bot domain"
@@ -152,6 +171,14 @@ fi
 
 if [ "${#bot_domain}" -gt 253 ] || ! printf '%s\n' "$bot_domain" | grep -Eq '^([A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z0-9]([A-Za-z0-9-]{0,61}[A-Za-z0-9])?$'; then
 	die "invalid domain: $bot_domain"
+fi
+
+if [ -z "$admin_user_id" ]; then
+	read_admin_user_id_from_tty
+fi
+
+if ! validate_admin_user_id "$admin_user_id"; then
+	die "Telegram administrator user ID must be a positive integer"
 fi
 
 if [ -n "$token_file" ]; then
@@ -279,6 +306,7 @@ webhook_secret=$(openssl rand -hex 32)
 umask 077
 cat >"$temp_dir/telegram-bot.env" <<EOF
 TELEGRAM_BOT_TOKEN=$bot_token
+TELEGRAM_ADMIN_USER_ID=$admin_user_id
 TELEGRAM_WEBHOOK_SECRET=$webhook_secret
 TELEGRAM_WEBHOOK_URL=https://$bot_domain$webhook_path
 LISTEN_ADDR=$listen_addr

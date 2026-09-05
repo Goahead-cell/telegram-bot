@@ -9,6 +9,7 @@ failed_binary="$target_binary.failed"
 candidate_binary="$target_binary.new"
 updater_path="/usr/local/sbin/telegram-bot-update"
 updater_candidate="$updater_path.new"
+env_file="/etc/telegram-bot/env"
 health_url="http://127.0.0.1:18082/healthz"
 release_version="latest"
 temp_dir=""
@@ -31,6 +32,37 @@ require_command() {
 	if ! command -v "$1" >/dev/null 2>&1; then
 		die "missing required command: $1"
 	fi
+}
+
+validate_admin_user_id() {
+	[ "${#1}" -le 18 ] && printf '%s\n' "$1" | grep -Eq '^[1-9][0-9]*$'
+}
+
+ensure_admin_user_id() {
+	admin_user_id=$(awk -F= '
+		/^[[:space:]]*TELEGRAM_ADMIN_USER_ID=/ {
+			value = substr($0, index($0, "=") + 1)
+		}
+		END { print value }
+	' "$env_file")
+
+	if validate_admin_user_id "$admin_user_id"; then
+		return
+	fi
+
+	[ -r /dev/tty ] || die "TELEGRAM_ADMIN_USER_ID is missing or invalid in $env_file; add it before updating"
+	printf 'Telegram administrator user ID: ' >/dev/tty
+	if ! IFS= read -r admin_user_id </dev/tty; then
+		die "could not read the Telegram administrator user ID"
+	fi
+	if ! validate_admin_user_id "$admin_user_id"; then
+		die "Telegram administrator user ID must be a positive integer"
+	fi
+
+	awk '!/^[[:space:]]*TELEGRAM_ADMIN_USER_ID=/' "$env_file" >"$temp_dir/telegram-bot.env"
+	printf 'TELEGRAM_ADMIN_USER_ID=%s\n' "$admin_user_id" >>"$temp_dir/telegram-bot.env"
+	install -o root -g telegram-bot -m 0640 "$temp_dir/telegram-bot.env" "$env_file"
+	echo "Added TELEGRAM_ADMIN_USER_ID to $env_file."
 }
 
 cleanup() {
@@ -76,7 +108,7 @@ if [ "$(id -u)" -ne 0 ]; then
 	die "run the updater as root: sudo telegram-bot-update"
 fi
 
-for command_name in cat curl grep id install journalctl mktemp mv rm sha256sum sleep systemctl tar uname; do
+for command_name in awk cat curl grep id install journalctl mktemp mv rm sha256sum sleep systemctl tar uname; do
 	require_command "$command_name"
 done
 
@@ -85,8 +117,14 @@ if [ "$release_version" != latest ] && ! printf '%s\n' "$release_version" | grep
 fi
 
 [ -f "$target_binary" ] || die "the bot is not installed; run install.sh first"
-[ -f /etc/telegram-bot/env ] || die "/etc/telegram-bot/env is missing"
+[ -f "$env_file" ] || die "$env_file is missing"
 systemctl cat "$service_name" >/dev/null 2>&1 || die "$service_name is not installed"
+
+temp_dir=$(mktemp -d)
+trap cleanup EXIT
+trap 'exit 1' HUP INT TERM
+
+ensure_admin_user_id
 
 case "$(uname -m)" in
 	x86_64)
@@ -108,9 +146,6 @@ fi
 
 archive_name="telegram-bot-linux-$release_arch.tar.gz"
 bundle_name="telegram-bot-linux-$release_arch"
-temp_dir=$(mktemp -d)
-trap cleanup EXIT
-trap 'exit 1' HUP INT TERM
 
 echo "Downloading $repository release ($release_arch, $release_version)..."
 curl --fail --location --retry 3 --connect-timeout 10 \

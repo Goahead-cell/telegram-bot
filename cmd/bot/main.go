@@ -18,7 +18,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	server, err := telegramserver.New(cfg, handlers.HandleUpdate)
+	router := handlers.NewRouter(cfg.AdminUserID)
+	server, err := telegramserver.New(cfg, router.HandleUpdate)
 	if err != nil {
 		log.Fatal(err)
 	}

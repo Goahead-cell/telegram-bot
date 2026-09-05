@@ -9,25 +9,59 @@ import (
 	"github.com/go-telegram/bot/models"
 )
 
+// Router dispatches updates received from the configured administrator.
+type Router struct {
+	adminUserID int64
+}
+
+// NewRouter creates a Router restricted to one Telegram user.
+func NewRouter(adminUserID int64) *Router {
+	return &Router{adminUserID: adminUserID}
+}
+
 // HandleUpdate is the callback passed to go-telegram/bot.
 // Add new commands here, then put their implementation in separate files.
-func HandleUpdate(ctx context.Context, b *bot.Bot, update *models.Update) {
+func (r *Router) HandleUpdate(ctx context.Context, b *bot.Bot, update *models.Update) {
 	if update == nil || update.Message == nil || update.Message.Text == "" {
 		return
 	}
-
-	if isStartCommand(update.Message.Text) {
-		Start(ctx, b, update)
+	if !isAdmin(update, r.adminUserID) {
 		return
 	}
 
-	Echo(ctx, b, update)
+	switch commandName(update.Message.Text) {
+	case "start":
+		Start(ctx, b, update)
+
+	case "help":
+		Help(ctx, b, update)
+
+	default:
+		Echo(ctx, b, update)
+	}
 }
 
-func isStartCommand(text string) bool {
+func isAdmin(update *models.Update, adminUserID int64) bool {
+	return update != nil &&
+		update.Message != nil &&
+		update.Message.From != nil &&
+		update.Message.From.ID == adminUserID
+}
+
+func commandName(text string) string {
 	fields := strings.Fields(text)
 	if len(fields) == 0 {
-		return false
+		return ""
 	}
-	return fields[0] == "/start" || strings.HasPrefix(fields[0], "/start@")
+
+	first := fields[0]
+	if !strings.HasPrefix(first, "/") {
+		return ""
+	}
+
+	// /help@my_bot 转换成 /help
+	command := strings.SplitN(first, "@", 2)[0]
+
+	// 去掉开头的 /
+	return strings.TrimPrefix(command, "/")
 }

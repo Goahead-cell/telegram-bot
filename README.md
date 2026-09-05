@@ -19,6 +19,7 @@ VPS 需要：
 - 已安装并能正常启动的 Caddy；
 - `curl`、`openssl`、`tar`、`sha256sum`；
 - 一个专门给 Bot 使用、尚未被其他 Caddy 站点占用的域名，例如 `bot.example.com`；
+- 管理员本人的 Telegram 数字用户 ID；
 - 域名 A/AAAA 记录已经指向 VPS，公网 80、443 端口可访问；
 - 本仓库至少已经通过 GitHub Actions 发布一个版本。
 
@@ -32,16 +33,20 @@ VPS 不需要安装 Go，也不需要下载源码。
 curl -fsSL https://github.com/Goahead-cell/telegram-bot/releases/latest/download/install.sh | sudo sh
 ```
 
-安装器只会询问两项内容：
+安装器会询问三项内容：
 
 ```text
 Telegram Bot dedicated domain: bot.example.com
+Telegram administrator user ID: 123456789
 Telegram BotFather token: [隐藏输入]
 ```
 
 - 域名填写纯域名，不要添加 `https://` 或路径；
+- 管理员 ID 必须是 Telegram 用户的正整数 ID；Bot 只响应这个用户发送的消息；
 - Token 从 BotFather 获取，安装器直接从当前 SSH 终端隐藏读取，不会显示，也不会进入 Shell 历史；
 - webhook 地址固定为 `https://你的域名/telegram/webhook`。
+
+不知道自己的数字 ID 时，可以先在 Telegram 中使用 ID 查询 Bot（例如 `@userinfobot`）查看。数字 ID 本身不是密码，但必须确认填写的是你自己的用户 ID，不是 Bot ID 或群组的 Chat ID。
 
 安装器会自动完成：
 
@@ -80,6 +85,7 @@ sudoedit /root/telegram-bot-token
 
 sudo sh /tmp/telegram-bot-install.sh \
   --domain bot.example.com \
+  --admin-user-id 123456789 \
   --token-file /root/telegram-bot-token
 ```
 
@@ -103,12 +109,15 @@ sudo rm -f /root/telegram-bot-token
 
 ```text
 TELEGRAM_BOT_TOKEN=从_BotFather_获取的_token
+TELEGRAM_ADMIN_USER_ID=你的_Telegram_数字用户_ID
 TELEGRAM_WEBHOOK_SECRET=安装器自动生成的64位字符串
 TELEGRAM_WEBHOOK_URL=https://bot.example.com/telegram/webhook
 LISTEN_ADDR=127.0.0.1:18082
 ```
 
 不要把这个文件复制到仓库、聊天记录或日志中。
+
+`TELEGRAM_ADMIN_USER_ID` 使用发送者的 `update.Message.From.ID` 验证身份，而不是聊天窗口的 `Chat.ID`。修改管理员后需要重启服务。
 
 修改 Token 或其他配置：
 
@@ -220,13 +229,14 @@ sudo telegram-bot-update v0.2.0
 
 更新器会自动：
 
-1. 检测 VPS CPU 架构；
-2. 下载并校验目标 Release；
-3. 将当前程序备份为 `.previous`；
-4. 原子替换程序并重启服务；
-5. 持续检查 systemd 和 `/healthz` 20 秒；
-6. 新版本失败时自动恢复旧版本；
-7. 更新 VPS 上的 `telegram-bot-update` 命令本身。
+1. 检查 `/etc/telegram-bot/env` 中的管理员 ID，缺少时从当前终端询问并写入；
+2. 检测 VPS CPU 架构；
+3. 下载并校验目标 Release；
+4. 将当前程序备份为 `.previous`；
+5. 原子替换程序并重启服务；
+6. 持续检查 systemd 和 `/healthz` 20 秒；
+7. 新版本失败时自动恢复旧版本；
+8. 更新 VPS 上的 `telegram-bot-update` 命令本身。
 
 相关文件：
 
@@ -242,6 +252,8 @@ sudo telegram-bot-update v0.2.0
 ```sh
 curl -fsSL https://github.com/Goahead-cell/telegram-bot/releases/latest/download/update.sh | sudo sh
 ```
+
+从不包含管理员 ID 的旧版本升级时，VPS 上现有的旧更新器还不知道这项新配置。发布包含本次修改的新版本后，第一次请直接运行上面的远程 `update.sh`；它会询问管理员 ID。此后继续使用 `sudo telegram-bot-update` 即可。
 
 ## 四、检查状态与排错
 
