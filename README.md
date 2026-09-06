@@ -20,6 +20,8 @@ Bot 只响应 `TELEGRAM_ADMIN_USER_ID` 配置的管理员：
 /version     查看当前 Bot 版本
 /services    查看 caddy、telegram-bot 和 hysteria-server 服务状态
 /id          显示当前 Telegram 用户 ID
+/traffic     查看 Hysteria 各节点及用户流量汇总
+/overlimit   查看 Hysteria 流量超限用户名单
 ```
 
 `/status` 只执行固定的只读系统命令。`/services` 使用 `systemctl is-active` 查询以下单元，不会启动、停止或重启服务：
@@ -28,6 +30,21 @@ Bot 只响应 `TELEGRAM_ADMIN_USER_ID` 配置的管理员：
 caddy.service
 telegram-bot.service
 hysteria-server.service
+```
+
+`/traffic` 和 `/overlimit` 都不执行 Shell 命令。前者直接解析 `/var/lib/hy2-aggregator/state.json`，显示统计周期、节点状态、RX/TX 总量以及跨节点合并后的用户流量；后者解析 `/var/lib/hy2-auth/over-limit.json`，只显示超限用户名单。报表只发送给配置的 Telegram 管理员。
+
+程序能直接识别这些指令，但 Telegram 菜单不会自动更新。要让 `/traffic` 等指令显示在输入框旁的命令菜单中，在 BotFather 使用 `/setcommands`，选择你的 Bot 后提交：
+
+```text
+start - 显示欢迎信息
+help - 显示指令列表
+status - 查看服务器状态
+version - 查看 Bot 版本
+services - 查看服务状态
+id - 显示 Telegram 用户 ID
+traffic - 查看 Hysteria 流量汇总
+overlimit - 查看 Hysteria 流量超限名单
 ```
 
 ## 一、VPS 首次安装
@@ -134,6 +151,8 @@ TELEGRAM_ADMIN_USER_ID=你的_Telegram_数字用户_ID
 TELEGRAM_WEBHOOK_SECRET=安装器自动生成的64位字符串
 TELEGRAM_WEBHOOK_URL=https://bot.example.com/telegram/webhook
 LISTEN_ADDR=127.0.0.1:18082
+HY2_AGGREGATOR_STATE_FILE=/var/lib/hy2-aggregator/state.json
+HY2_OVER_LIMIT_FILE=/var/lib/hy2-auth/over-limit.json
 ```
 
 不要把这个文件复制到仓库、聊天记录或日志中。
@@ -154,6 +173,37 @@ openssl rand -hex 32
 sudoedit /etc/telegram-bot/env
 sudo systemctl restart telegram-bot
 ```
+
+### Hysteria JSON 数据文件
+
+默认读取：
+
+```text
+/var/lib/hy2-aggregator/state.json
+/var/lib/hy2-auth/over-limit.json
+```
+
+两个文件都需要允许低权限的 `telegram-bot` 用户读取。当前采用 `0644` 文件权限方案，安装和更新脚本不会修改用户组或这两个文件的权限。可以这样检查：
+
+```sh
+sudo -u telegram-bot test -r /var/lib/hy2-aggregator/state.json && echo state-readable
+sudo -u telegram-bot test -r /var/lib/hy2-auth/over-limit.json && echo over-limit-readable
+```
+
+如果没有对应输出，用下面的命令检查路径中各级目录是否允许遍历：
+
+```sh
+namei -l /var/lib/hy2-aggregator/state.json
+namei -l /var/lib/hy2-auth/over-limit.json
+```
+
+`over-limit.json` 必须是标准 JSON，字符串要使用英文半角双引号：
+
+```json
+{"version":1,"clear_generation":2,"over_limit":["userA"]}
+```
+
+中文弯引号 `“userA”` 不是合法 JSON。如果文件位置发生变化，在 `/etc/telegram-bot/env` 修改 `HY2_AGGREGATOR_STATE_FILE` 或 `HY2_OVER_LIMIT_FILE`，然后重启 Bot。旧版本安装生成的环境文件可能没有这两行，程序会自动使用上面的默认路径。
 
 ### Caddy 配置
 
@@ -222,6 +272,8 @@ sudo systemctl restart telegram-bot
 /etc/telegram-bot/env                     # Token、secret、webhook URL
 /etc/systemd/system/telegram-bot.service  # systemd 服务
 /etc/caddy/telegram-bot.caddy             # Bot 专用 Caddy 配置
+/var/lib/hy2-aggregator/state.json         # /traffic 的只读数据来源
+/var/lib/hy2-auth/over-limit.json          # /overlimit 的只读数据来源
 ```
 
 ## 三、一键更新与回滚
@@ -241,7 +293,7 @@ sudo /usr/local/sbin/telegram-bot-update
 ### 更新或回退到指定版本
 
 ```sh
-sudo telegram-bot-update v0.3.0
+sudo telegram-bot-update v0.4.0
 ```
 
 参数必须是已经存在的 GitHub Release 标签。
@@ -274,8 +326,6 @@ sudo telegram-bot-update v0.3.0
 ```sh
 curl -fsSL https://github.com/Goahead-cell/telegram-bot/releases/latest/download/update.sh | sudo sh
 ```
-
-从不包含管理员 ID 的旧版本升级时，VPS 上现有的旧更新器还不知道这项新配置。发布包含本次修改的新版本后，第一次请直接运行上面的远程 `update.sh`；它会询问管理员 ID。此后继续使用 `sudo telegram-bot-update` 即可。
 
 ## 四、检查状态与排错
 
@@ -316,7 +366,8 @@ sudo journalctl -u caddy -n 100 --no-pager
 - 安装地址返回 `404`：仓库还没有 Release，或者最新 Release 没有上传 `install.sh`；
 - Caddy 无法申请证书：检查域名 DNS 和 VPS 的 80/443 防火墙；
 - Bot 服务不断重启：检查 Token、服务器能否访问 Telegram API，以及 `journalctl` 日志；
-- webhook 不生效：确认环境文件和 Caddy 中的域名、`/telegram/webhook` 路径一致。
+- webhook 不生效：确认环境文件和 Caddy 中的域名、`/telegram/webhook` 路径一致；
+- `/traffic` 或 `/overlimit` 提示读取失败：用 `sudo -u telegram-bot test -r 文件路径` 检查读取权限，并确认文件内容是标准 JSON。
 
 ## 五、发布新版本
 
@@ -324,8 +375,8 @@ sudo journalctl -u caddy -n 100 --no-pager
 
 ```powershell
 git push origin main
-git tag -a v0.3.0 -m "v0.3.0"
-git push origin v0.3.0
+git tag -a v0.4.0 -m "v0.4.0"
+git push origin v0.4.0
 ```
 
 GitHub Actions 会自动运行测试，构建 `linux-amd64`、`linux-arm64`，生成 SHA-256，并上传到 GitHub Releases。等待工作流成功后，VPS 才能安装或更新到该版本。
@@ -342,8 +393,8 @@ go vet ./...
 本地交叉编译：
 
 ```powershell
-.\build-linux.ps1 -Arch amd64 -Version v0.3.0
-.\build-linux.ps1 -Arch arm64 -Version v0.3.0
+.\build-linux.ps1 -Arch amd64 -Version v0.4.0
+.\build-linux.ps1 -Arch arm64 -Version v0.4.0
 ```
 
 构建产物位于被 Git 忽略的 `dist/`。Token、webhook secret、`.env`、私钥和构建产物都不应进入 Git。

@@ -15,7 +15,9 @@ func Help(ctx context.Context, b *bot.Bot, update *models.Update) {
 /status - CPU、内存、磁盘和运行时间
 /version - 当前 Bot 版本
 /services - Caddy、Bot 和 Hysteria 服务状态
-/id - 当前 Telegram 用户 ID`
+/id - 当前 Telegram 用户 ID
+/traffic - Hysteria 用户流量汇总
+/overlimit - Hysteria 流量超限用户名单`
 
 	sendText(ctx, b, update.Message.Chat.ID, text)
 }

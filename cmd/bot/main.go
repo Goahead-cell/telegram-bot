@@ -26,7 +26,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	router := handlers.NewRouter(cfg.AdminUserID, version)
+	router := handlers.NewRouter(cfg.AdminUserID, version, cfg.TrafficStateFile, cfg.OverLimitFile)
 	server, err := telegramserver.New(cfg, router.HandleUpdate)
 	if err != nil {
 		log.Fatal(err)

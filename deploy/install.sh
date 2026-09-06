@@ -11,6 +11,8 @@ caddy_config="/etc/caddy/Caddyfile"
 caddy_managed_config="/etc/caddy/telegram-bot.caddy"
 webhook_path="/telegram/webhook"
 listen_addr="127.0.0.1:18082"
+traffic_state_file="/var/lib/hy2-aggregator/state.json"
+over_limit_file="/var/lib/hy2-auth/over-limit.json"
 
 release_version="latest"
 bot_domain=""
@@ -310,6 +312,8 @@ TELEGRAM_ADMIN_USER_ID=$admin_user_id
 TELEGRAM_WEBHOOK_SECRET=$webhook_secret
 TELEGRAM_WEBHOOK_URL=https://$bot_domain$webhook_path
 LISTEN_ADDR=$listen_addr
+HY2_AGGREGATOR_STATE_FILE=$traffic_state_file
+HY2_OVER_LIMIT_FILE=$over_limit_file
 EOF
 
 install -d -o root -g telegram-bot -m 0750 "$env_dir"

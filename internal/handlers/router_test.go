@@ -20,6 +20,8 @@ func TestCommandName(t *testing.T) {
 		{text: "/version", want: "version"},
 		{text: "/services", want: "services"},
 		{text: "/id", want: "id"},
+		{text: "/traffic", want: "traffic"},
+		{text: "/overlimit", want: "overlimit"},
 		{text: "hello", want: ""},
 		{text: "", want: ""},
 	}

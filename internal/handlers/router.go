@@ -11,15 +11,19 @@ import (
 
 // Router dispatches updates received from the configured administrator.
 type Router struct {
-	adminUserID int64
-	version     string
+	adminUserID      int64
+	version          string
+	trafficStateFile string
+	overLimitFile    string
 }
 
 // NewRouter creates a Router restricted to one Telegram user.
-func NewRouter(adminUserID int64, version string) *Router {
+func NewRouter(adminUserID int64, version, trafficStateFile, overLimitFile string) *Router {
 	return &Router{
-		adminUserID: adminUserID,
-		version:     version,
+		adminUserID:      adminUserID,
+		version:          version,
+		trafficStateFile: trafficStateFile,
+		overLimitFile:    overLimitFile,
 	}
 }
 
@@ -46,6 +50,10 @@ func (r *Router) HandleUpdate(ctx context.Context, b *bot.Bot, update *models.Up
 		Services(ctx, b, update)
 	case "id":
 		ID(ctx, b, update)
+	case "traffic":
+		Traffic(ctx, b, update, r.trafficStateFile)
+	case "overlimit":
+		OverLimit(ctx, b, update, r.overLimitFile)
 	default:
 		Echo(ctx, b, update)
 	}

@@ -17,12 +17,14 @@ var webhookSecretPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{32,256}$`)
 
 // Config contains all validated runtime configuration.
 type Config struct {
-	BotToken      string
-	AdminUserID   int64
-	WebhookSecret string
-	WebhookURL    string
-	WebhookPath   string
-	ListenAddr    string
+	BotToken         string
+	AdminUserID      int64
+	WebhookSecret    string
+	WebhookURL       string
+	WebhookPath      string
+	ListenAddr       string
+	TrafficStateFile string
+	OverLimitFile    string
 }
 
 // Load reads configuration from environment variables.
@@ -32,14 +34,22 @@ func Load() (Config, error) {
 
 func load(getenv func(string) string) (Config, error) {
 	cfg := Config{
-		BotToken:      strings.TrimSpace(getenv("TELEGRAM_BOT_TOKEN")),
-		WebhookSecret: strings.TrimSpace(getenv("TELEGRAM_WEBHOOK_SECRET")),
-		WebhookURL:    strings.TrimSpace(getenv("TELEGRAM_WEBHOOK_URL")),
-		ListenAddr:    strings.TrimSpace(getenv("LISTEN_ADDR")),
+		BotToken:         strings.TrimSpace(getenv("TELEGRAM_BOT_TOKEN")),
+		WebhookSecret:    strings.TrimSpace(getenv("TELEGRAM_WEBHOOK_SECRET")),
+		WebhookURL:       strings.TrimSpace(getenv("TELEGRAM_WEBHOOK_URL")),
+		ListenAddr:       strings.TrimSpace(getenv("LISTEN_ADDR")),
+		TrafficStateFile: strings.TrimSpace(getenv("HY2_AGGREGATOR_STATE_FILE")),
+		OverLimitFile:    strings.TrimSpace(getenv("HY2_OVER_LIMIT_FILE")),
 	}
 
 	if cfg.ListenAddr == "" {
 		cfg.ListenAddr = "127.0.0.1:18082"
+	}
+	if cfg.TrafficStateFile == "" {
+		cfg.TrafficStateFile = "/var/lib/hy2-aggregator/state.json"
+	}
+	if cfg.OverLimitFile == "" {
+		cfg.OverLimitFile = "/var/lib/hy2-auth/over-limit.json"
 	}
 	if cfg.BotToken == "" {
 		return Config{}, errors.New("TELEGRAM_BOT_TOKEN is required")
@@ -76,6 +86,12 @@ func load(getenv func(string) string) (Config, error) {
 	port, err := strconv.Atoi(portText)
 	if err != nil || port < 1 || port > 65535 {
 		return Config{}, errors.New("LISTEN_ADDR port must be between 1 and 65535")
+	}
+	if !path.IsAbs(cfg.TrafficStateFile) || path.Clean(cfg.TrafficStateFile) != cfg.TrafficStateFile || cfg.TrafficStateFile == "/" {
+		return Config{}, errors.New("HY2_AGGREGATOR_STATE_FILE must be a clean absolute path")
+	}
+	if !path.IsAbs(cfg.OverLimitFile) || path.Clean(cfg.OverLimitFile) != cfg.OverLimitFile || cfg.OverLimitFile == "/" {
+		return Config{}, errors.New("HY2_OVER_LIMIT_FILE must be a clean absolute path")
 	}
 
 	return cfg, nil

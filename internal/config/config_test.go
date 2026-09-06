@@ -26,6 +26,12 @@ func TestLoad(t *testing.T) {
 	if cfg.AdminUserID != 123456789 {
 		t.Fatalf("unexpected admin user ID: %d", cfg.AdminUserID)
 	}
+	if cfg.TrafficStateFile != "/var/lib/hy2-aggregator/state.json" {
+		t.Fatalf("unexpected traffic state file: %q", cfg.TrafficStateFile)
+	}
+	if cfg.OverLimitFile != "/var/lib/hy2-auth/over-limit.json" {
+		t.Fatalf("unexpected over-limit file: %q", cfg.OverLimitFile)
+	}
 }
 
 func TestLoadRejectsUnsafeValues(t *testing.T) {
@@ -48,6 +54,12 @@ func TestLoadRejectsUnsafeValues(t *testing.T) {
 		{name: "non-loopback listener", key: "LISTEN_ADDR", value: "0.0.0.0:18082"},
 		{name: "listener without port", key: "LISTEN_ADDR", value: "127.0.0.1"},
 		{name: "invalid listener port", key: "LISTEN_ADDR", value: "127.0.0.1:70000"},
+		{name: "relative traffic state path", key: "HY2_AGGREGATOR_STATE_FILE", value: "state.json"},
+		{name: "unclean traffic state path", key: "HY2_AGGREGATOR_STATE_FILE", value: "/var/lib/../state.json"},
+		{name: "root traffic state path", key: "HY2_AGGREGATOR_STATE_FILE", value: "/"},
+		{name: "relative over-limit path", key: "HY2_OVER_LIMIT_FILE", value: "over-limit.json"},
+		{name: "unclean over-limit path", key: "HY2_OVER_LIMIT_FILE", value: "/var/lib/../over-limit.json"},
+		{name: "root over-limit path", key: "HY2_OVER_LIMIT_FILE", value: "/"},
 	}
 
 	for _, tt := range tests {
